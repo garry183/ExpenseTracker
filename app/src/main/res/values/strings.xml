@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Expense Tracker</string>
+    
+    <!-- Add Expense Screen -->
+    <string name="add_expense_title">Add Expense</string>
+    <string name="amount_hint">Enter amount</string>
+    <string name="select_category">Select Category</string>
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="custom_date">Custom</string>
+    <string name="save">Save</string>
+    <string name="voice_input">Voice Input</string>
+    
+    <!-- Reports Screen -->
+    <string name="reports_title">Reports</string>
+    <string name="daily_total">Daily Total</string>
+    <string name="monthly_total">Monthly Total</string>
+    <string name="category_breakdown">Category Breakdown</string>
+    
+    <!-- PIN Screen -->
+    <string name="enter_pin">Enter PIN</string>
+    <string name="setup_pin">Setup PIN</string>
+    <string name="confirm_pin">Confirm PIN</string>
+    <string name="pin_mismatch">PINs do not match</string>
+    
+    <!-- Categories -->
+    <string name="food">Food</string>
+    <string name="groceries">Groceries</string>
+    <string name="transport">Transport</string>
+    <string name="entertainment">Entertainment</string>
+    <string name="shopping">Shopping</string>
+    <string name="bills">Bills</string>
+    <string name="health">Health</string>
+    <string name="others">Others</string>
+    
+    <!-- Common -->
+    <string name="rupee_symbol">₹</string>
+    <string name="error_generic">Something went wrong</string>
+    <string name="sync_pending">Sync pending</string>
+    <string name="synced">Synced</string>
+</resources>
