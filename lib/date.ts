@@ -48,6 +48,12 @@ export function daysInMonth(month: string): number {
   return new Date(y, m, 0).getDate();
 }
 
+export function daysBetween(fromIso: string, toIso: string): number {
+  const from = new Date(fromIso + 'T00:00:00');
+  const to = new Date(toIso + 'T00:00:00');
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+}
+
 export function daysRemainingInMonth(month: string): number {
   const today = todayISO();
   if (today.slice(0, 7) !== month) {

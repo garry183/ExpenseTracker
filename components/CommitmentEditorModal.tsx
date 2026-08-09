@@ -1,23 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Category, Commitment } from '@/types';
+import { Category, Commitment, CommitmentFrequency } from '@/types';
 import { colors, radii, spacing, CURRENCY } from '@/constants/theme';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 interface Props {
   visible: boolean;
   commitment: Commitment | null; // null = create
   categories: Category[]; // expense categories to choose from
+  defaultFrequency?: CommitmentFrequency; // frequency for a newly created commitment
   onClose: () => void;
   onSave: (input: Omit<Commitment, 'id' | 'lastPostedMonth'>, id: string | null) => void;
   onDelete: (id: string) => void;
 }
 
-export default function CommitmentEditorModal({ visible, commitment, categories, onClose, onSave, onDelete }: Props) {
+export default function CommitmentEditorModal({ visible, commitment, categories, defaultFrequency = 'monthly', onClose, onSave, onDelete }: Props) {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
+  const [frequency, setFrequency] = useState<CommitmentFrequency>('monthly');
   const [day, setDay] = useState('1');
+  const [monthOfYear, setMonthOfYear] = useState(1);
   const [active, setActive] = useState(true);
 
   useEffect(() => {
@@ -26,17 +31,22 @@ export default function CommitmentEditorModal({ visible, commitment, categories,
       setName(commitment.name);
       setAmount(String(commitment.amount));
       setCategoryId(commitment.categoryId);
+      setFrequency(commitment.frequency);
       setDay(String(commitment.dayOfMonth));
+      setMonthOfYear(commitment.monthOfYear ?? 1);
       setActive(commitment.active);
     } else {
       setName('');
       setAmount('');
       setCategoryId(categories[0]?.id ?? '');
+      setFrequency(defaultFrequency);
       setDay('1');
+      setMonthOfYear(1);
       setActive(true);
     }
-  }, [visible, commitment, categories]);
+  }, [visible, commitment, categories, defaultFrequency]);
 
+  const isYearly = frequency === 'yearly';
   const parsedAmount = parseFloat(amount);
   const parsedDay = Math.min(31, Math.max(1, parseInt(day, 10) || 1));
   const valid = name.trim().length > 0 && !Number.isNaN(parsedAmount) && parsedAmount > 0 && !!categoryId;
@@ -44,7 +54,15 @@ export default function CommitmentEditorModal({ visible, commitment, categories,
   function submit() {
     if (!valid) return;
     onSave(
-      { name: name.trim(), amount: parsedAmount, categoryId, dayOfMonth: parsedDay, active },
+      {
+        name: name.trim(),
+        amount: parsedAmount,
+        categoryId,
+        frequency,
+        dayOfMonth: parsedDay,
+        monthOfYear: isYearly ? monthOfYear : null,
+        active,
+      },
       commitment?.id ?? null
     );
     onClose();
@@ -115,9 +133,57 @@ export default function CommitmentEditorModal({ visible, commitment, categories,
               </View>
             </View>
 
+            {/* Frequency */}
+            <View>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: spacing.sm }}>Repeats</Text>
+              <View style={{ flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radii.md, padding: 4 }}>
+                {(['monthly', 'yearly'] as CommitmentFrequency[]).map((f) => {
+                  const selected = frequency === f;
+                  return (
+                    <Pressable
+                      key={f}
+                      testID={`commitment-freq-${f}`}
+                      onPress={() => setFrequency(f)}
+                      style={{ flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radii.sm, backgroundColor: selected ? colors.primary : 'transparent' }}
+                    >
+                      <Text style={{ color: selected ? colors.onPrimary : colors.textMuted, fontWeight: '700', fontSize: 13 }}>
+                        {f === 'monthly' ? 'Monthly' : 'Yearly'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Due month (yearly only) */}
+            {isYearly ? (
+              <View>
+                <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: spacing.sm }}>Due month</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                  {MONTHS.map((m, i) => {
+                    const selected = monthOfYear === i + 1;
+                    return (
+                      <Pressable
+                        key={m}
+                        testID={`commitment-month-${i + 1}`}
+                        onPress={() => setMonthOfYear(i + 1)}
+                        style={{
+                          paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radii.pill,
+                          backgroundColor: selected ? colors.primary : colors.surface,
+                          borderWidth: 1, borderColor: selected ? colors.primary : colors.border,
+                        }}
+                      >
+                        <Text style={{ color: selected ? colors.onPrimary : colors.text, fontWeight: '600', fontSize: 13 }}>{m}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+
             {/* Day of month */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 14, color: colors.text }}>Due day of month</Text>
+              <Text style={{ fontSize: 14, color: colors.text }}>{isYearly ? 'Due day' : 'Due day of month'}</Text>
               <TextInput
                 testID="commitment-day-input"
                 value={day}

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { Transaction, Budget, Category, Commitment, FinancePlan } from '@/types';
+import { Transaction, Budget, Category, Commitment, FinancePlan, AnnualExpenseInfo, AnnualExpenseStatus } from '@/types';
 import { getCategoryById as resolveCategory, categoriesForType } from '@/constants/categories';
-import { currentMonth, todayISO, daysInMonth, daysRemainingInMonth } from '@/lib/date';
+import { currentMonth, todayISO, daysInMonth, daysRemainingInMonth, daysBetween } from '@/lib/date';
 import * as db from '@/lib/db';
 
 const MONTHLY_BUDGET_KEY = 'monthlyBudget';
@@ -54,6 +54,8 @@ interface StoreState {
   categoryById: (id: string) => Category;
   monthlyLeft: (month: string) => number;
   committedTotal: () => number;
+  yearlyCommittedTotal: () => number;
+  annualExpenses: () => AnnualExpenseInfo[];
   financePlan: (month: string) => FinancePlan;
 }
 
@@ -168,10 +170,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
   postDueCommitments: async () => {
     const month = currentMonth();
+    const monthNum = Number(month.slice(5, 7));
     const today = Number(todayISO().slice(8, 10));
     const dim = daysInMonth(month);
     const due = get().commitments.filter((c) => c.active && c.lastPostedMonth !== month);
     for (const c of due) {
+      if (c.frequency === 'yearly' && c.monthOfYear !== monthNum) continue; // not its due month
       const day = Math.min(c.dayOfMonth, dim);
       if (today < day) continue; // not reached its due day yet this month
       const t: Transaction = {
@@ -224,21 +228,58 @@ export const useStore = create<StoreState>((set, get) => ({
   monthlyLeft: (month) => get().monthlyBudget - get().monthTotals(month).expense,
 
   committedTotal: () =>
-    get().commitments.filter((c) => c.active).reduce((sum, c) => sum + c.amount, 0),
+    get()
+      .commitments.filter((c) => c.active && c.frequency === 'monthly')
+      .reduce((sum, c) => sum + c.amount, 0),
+
+  yearlyCommittedTotal: () =>
+    get()
+      .commitments.filter((c) => c.active && c.frequency === 'yearly')
+      .reduce((sum, c) => sum + c.amount, 0),
+
+  annualExpenses: () => {
+    const today = todayISO();
+    return get()
+      .commitments.filter((c) => c.frequency === 'yearly' && c.active)
+      .map((c) => annualExpenseInfoFor(c, today))
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+  },
 
   financePlan: (month) => {
     const income = get().monthlyIncome;
     const savings = get().savingsTarget;
     const committed = get().committedTotal();
+    const yearlyReserve = get().yearlyCommittedTotal() / 12;
     const discretionarySpent = get()
       .transactionsForMonth(month)
       .filter((t) => t.type === 'expense' && !t.commitmentId)
       .reduce((sum, t) => sum + t.amount, 0);
-    const safeToSpend = income - committed - savings - discretionarySpent;
+    const safeToSpend = income - committed - yearlyReserve - savings - discretionarySpent;
     const perDay = safeToSpend / daysRemainingInMonth(month);
-    return { income, committed, savings, discretionarySpent, safeToSpend, perDay };
+    return { income, committed, yearlyReserve, savings, discretionarySpent, safeToSpend, perDay };
   },
 }));
+
+function annualExpenseInfoFor(c: Commitment, today: string): AnnualExpenseInfo {
+  const year = today.slice(0, 4);
+  const monthOfYear = c.monthOfYear ?? 1;
+  const monthStr = `${year}-${String(monthOfYear).padStart(2, '0')}`;
+  const day = Math.min(c.dayOfMonth, daysInMonth(monthStr));
+  const dueDate = `${monthStr}-${String(day).padStart(2, '0')}`;
+  const paid = !!c.lastPostedMonth && c.lastPostedMonth.slice(0, 4) === year;
+  const daysUntil = daysBetween(today, dueDate);
+
+  let status: AnnualExpenseStatus;
+  if (paid) status = 'paid';
+  else if (daysUntil < 0) status = 'overdue';
+  else if (daysUntil <= 45) status = 'dueSoon';
+  else status = 'upcoming';
+
+  const monthsRemaining = Math.max(1, Math.ceil(Math.max(daysUntil, 0) / 30));
+  const perMonthToSave = c.amount / monthsRemaining;
+
+  return { commitment: c, dueDate, daysUntil, status, perMonthToSave };
+}
 
 function sortTx(txs: Transaction[]): Transaction[] {
   return [...txs].sort((a, b) =>

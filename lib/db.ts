@@ -42,7 +42,9 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           name TEXT NOT NULL,
           amount REAL NOT NULL,
           categoryId TEXT NOT NULL,
+          frequency TEXT NOT NULL DEFAULT 'monthly',
           dayOfMonth INTEGER NOT NULL DEFAULT 1,
+          monthOfYear INTEGER,
           active INTEGER NOT NULL DEFAULT 1,
           lastPostedMonth TEXT
         );
@@ -52,6 +54,17 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
       // Migration for installs created before commitments landed.
       try {
         await db.execAsync('ALTER TABLE transactions ADD COLUMN commitmentId TEXT');
+      } catch {
+        // column already exists — ignore
+      }
+      // Migration for installs created before yearly commitments landed.
+      try {
+        await db.execAsync("ALTER TABLE commitments ADD COLUMN frequency TEXT NOT NULL DEFAULT 'monthly'");
+      } catch {
+        // column already exists — ignore
+      }
+      try {
+        await db.execAsync('ALTER TABLE commitments ADD COLUMN monthOfYear INTEGER');
       } catch {
         // column already exists — ignore
       }
@@ -153,15 +166,17 @@ export async function deleteCategory(id: string): Promise<void> {
 export async function getAllCommitments(): Promise<Commitment[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<{
-    id: string; name: string; amount: number; categoryId: string;
-    dayOfMonth: number; active: number; lastPostedMonth: string | null;
+    id: string; name: string; amount: number; categoryId: string; frequency: string;
+    dayOfMonth: number; monthOfYear: number | null; active: number; lastPostedMonth: string | null;
   }>('SELECT * FROM commitments ORDER BY dayOfMonth ASC, name ASC');
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
     amount: r.amount,
     categoryId: r.categoryId,
+    frequency: r.frequency === 'yearly' ? 'yearly' : 'monthly',
     dayOfMonth: r.dayOfMonth,
+    monthOfYear: r.monthOfYear ?? null,
     active: r.active === 1,
     lastPostedMonth: r.lastPostedMonth,
   }));
@@ -170,16 +185,16 @@ export async function getAllCommitments(): Promise<Commitment[]> {
 export async function insertCommitment(c: Commitment): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    'INSERT INTO commitments (id, name, amount, categoryId, dayOfMonth, active, lastPostedMonth) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    c.id, c.name, c.amount, c.categoryId, c.dayOfMonth, c.active ? 1 : 0, c.lastPostedMonth
+    'INSERT INTO commitments (id, name, amount, categoryId, frequency, dayOfMonth, monthOfYear, active, lastPostedMonth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    c.id, c.name, c.amount, c.categoryId, c.frequency, c.dayOfMonth, c.monthOfYear, c.active ? 1 : 0, c.lastPostedMonth
   );
 }
 
 export async function updateCommitment(c: Commitment): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    'UPDATE commitments SET name = ?, amount = ?, categoryId = ?, dayOfMonth = ?, active = ?, lastPostedMonth = ? WHERE id = ?',
-    c.name, c.amount, c.categoryId, c.dayOfMonth, c.active ? 1 : 0, c.lastPostedMonth, c.id
+    'UPDATE commitments SET name = ?, amount = ?, categoryId = ?, frequency = ?, dayOfMonth = ?, monthOfYear = ?, active = ?, lastPostedMonth = ? WHERE id = ?',
+    c.name, c.amount, c.categoryId, c.frequency, c.dayOfMonth, c.monthOfYear, c.active ? 1 : 0, c.lastPostedMonth, c.id
   );
 }
 
@@ -246,8 +261,8 @@ export async function replaceAllData(b: BackupBundle): Promise<void> {
     }
     for (const c of b.commitments) {
       await db.runAsync(
-        'INSERT INTO commitments (id, name, amount, categoryId, dayOfMonth, active, lastPostedMonth) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        c.id, c.name, c.amount, c.categoryId, c.dayOfMonth, c.active ? 1 : 0, c.lastPostedMonth
+        'INSERT INTO commitments (id, name, amount, categoryId, frequency, dayOfMonth, monthOfYear, active, lastPostedMonth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        c.id, c.name, c.amount, c.categoryId, c.frequency ?? 'monthly', c.dayOfMonth, c.monthOfYear ?? null, c.active ? 1 : 0, c.lastPostedMonth
       );
     }
     for (const s of b.settings) {

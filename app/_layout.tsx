@@ -27,14 +27,14 @@ export default function RootLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Records',
+            title: 'Home',
             tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="charts"
           options={{
-            title: 'Charts',
+            title: 'Analytics',
             tabBarIcon: ({ color, size }) => <Ionicons name="pie-chart-outline" size={size} color={color} />,
           }}
         />
