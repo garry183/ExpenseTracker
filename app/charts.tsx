@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import Donut from '@/components/Donut';
 import Bars from '@/components/Bars';
 import { useStore } from '@/store/useStore';
-import { getCategoryById } from '@/constants/categories';
 import { currentMonth, addMonths, monthLabel, shortMonthLabel } from '@/lib/date';
 import { colors, radii, spacing, formatAmount } from '@/constants/theme';
 
@@ -13,13 +12,14 @@ export default function ChartsScreen() {
   const [month, setMonth] = useState(currentMonth());
   const spentByCategory = useStore((s) => s.spentByCategory);
   const monthTotals = useStore((s) => s.monthTotals);
+  const categoryById = useStore((s) => s.categoryById);
 
   const breakdown = useMemo(() => {
     const map = spentByCategory(month);
     return Object.entries(map)
-      .map(([categoryId, value]) => ({ category: getCategoryById(categoryId), value }))
+      .map(([categoryId, value]) => ({ category: categoryById(categoryId), value }))
       .sort((a, b) => b.value - a.value);
-  }, [month, spentByCategory]);
+  }, [month, spentByCategory, categoryById]);
 
   const totalExpense = monthTotals(month).expense;
 

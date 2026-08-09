@@ -4,8 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import CategoryGrid from '@/components/CategoryGrid';
+import CategoryEditorModal from '@/components/CategoryEditorModal';
 import Keypad, { KeypadKey } from '@/components/Keypad';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/constants/categories';
+import { categoriesForType } from '@/constants/categories';
 import { TransactionType } from '@/types';
 import { useStore } from '@/store/useStore';
 import { todayISO, addDaysISO, dayHeaderLabel } from '@/lib/date';
@@ -30,9 +31,11 @@ function evalExpression(expr: string): number {
 export default function AddScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const transactions = useStore((s) => s.transactions);
+  const allCategories = useStore((s) => s.categories);
   const addTransaction = useStore((s) => s.addTransaction);
   const updateTransaction = useStore((s) => s.updateTransaction);
   const deleteTransaction = useStore((s) => s.deleteTransaction);
+  const addCategory = useStore((s) => s.addCategory);
 
   const [type, setType] = useState<TransactionType>('expense');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -40,6 +43,7 @@ export default function AddScreen() {
   const [note, setNote] = useState('');
   const [date, setDate] = useState(todayISO());
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  const [editorVisible, setEditorVisible] = useState(false);
 
   // Seed from existing transaction when editing; reset when adding fresh.
   useFocusEffect(
@@ -61,7 +65,7 @@ export default function AddScreen() {
     }, [id, transactions, loadedId])
   );
 
-  const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const categories = useMemo(() => categoriesForType(allCategories, type), [allCategories, type]);
   const amount = useMemo(() => evalExpression(expr), [expr]);
   const canSubmit = amount > 0 && !!categoryId;
   const showsMath = /[+-]/.test(expr.slice(1));
@@ -156,7 +160,12 @@ export default function AddScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }} keyboardShouldPersistTaps="handled">
-        <CategoryGrid categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
+        <CategoryGrid
+          categories={categories}
+          selectedId={categoryId}
+          onSelect={setCategoryId}
+          onAddNew={() => setEditorVisible(true)}
+        />
 
         {/* Date stepper */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.sm }}>
@@ -195,6 +204,17 @@ export default function AddScreen() {
       </ScrollView>
 
       <Keypad onKey={onKey} onSubmit={onSubmit} canSubmit={canSubmit} submitLabel={id && loadedId ? 'Update' : 'Save'} />
+
+      <CategoryEditorModal
+        visible={editorVisible}
+        type={type}
+        onClose={() => setEditorVisible(false)}
+        onCreate={async (input) => {
+          const cat = await addCategory(input);
+          setCategoryId(cat.id);
+          setEditorVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 }

@@ -43,6 +43,11 @@ export function dayHeaderLabel(iso: string): string {
   return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+export function daysInMonth(month: string): number {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+
 export function daysRemainingInMonth(month: string): number {
   const today = todayISO();
   if (today.slice(0, 7) !== month) {

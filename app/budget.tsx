@@ -2,31 +2,35 @@ import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AmountPromptModal from '@/components/AmountPromptModal';
 import { useStore } from '@/store/useStore';
-import { EXPENSE_CATEGORIES, getCategoryById } from '@/constants/categories';
+import { categoriesForType } from '@/constants/categories';
 import { currentMonth, addMonths, monthLabel, daysRemainingInMonth } from '@/lib/date';
 import { colors, radii, spacing, formatAmount } from '@/constants/theme';
 
 export default function BudgetScreen() {
   const [month, setMonth] = useState(currentMonth());
+  const [overallModal, setOverallModal] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
-  const budgets = useStore((s) => s.budgets);
+  const allCategories = useStore((s) => s.categories);
   const spentByCategory = useStore((s) => s.spentByCategory);
   const monthTotals = useStore((s) => s.monthTotals);
   const setBudget = useStore((s) => s.setBudget);
   const budgetFor = useStore((s) => s.budgetFor);
+  const categoryById = useStore((s) => s.categoryById);
+  const monthlyBudget = useStore((s) => s.monthlyBudget);
+  const setMonthlyBudget = useStore((s) => s.setMonthlyBudget);
 
+  const expenseCategories = useMemo(() => categoriesForType(allCategories, 'expense'), [allCategories]);
   const spent = spentByCategory(month);
-  const totalBudget = budgets.filter((b) => b.month === month).reduce((s, b) => s + b.limit, 0);
   const totalSpent = monthTotals(month).expense;
 
-  const safe = useMemo(() => {
-    if (totalBudget <= 0) return null;
-    const remaining = totalBudget - totalSpent;
-    return { remaining, perDay: remaining / daysRemainingInMonth(month) };
-  }, [totalBudget, totalSpent, month]);
+  const left = monthlyBudget - totalSpent;
+  const usedPct = monthlyBudget > 0 ? Math.min(totalSpent / monthlyBudget, 1) : 0;
+  const overBudget = monthlyBudget > 0 && left < 0;
+  const perDay = monthlyBudget > 0 ? left / daysRemainingInMonth(month) : 0;
 
   function openEditor(categoryId: string) {
     const existing = budgetFor(categoryId, month);
@@ -56,22 +60,50 @@ export default function BudgetScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: 40 }}>
-        {/* Overview */}
-        <View style={{ backgroundColor: colors.primary, borderRadius: radii.lg, padding: spacing.lg }}>
-          <Text style={{ color: '#E8DEF8', fontSize: 13 }}>Total budget {formatAmount(totalBudget)}</Text>
-          <Text style={{ color: '#FFFFFF', fontSize: 28, fontWeight: '800', marginVertical: spacing.xs }}>
-            {formatAmount(Math.max(0, totalBudget - totalSpent))} left
-          </Text>
-          {safe ? (
-            <Text style={{ color: '#E8DEF8', fontSize: 13 }}>
-              {formatAmount(Math.max(0, safe.perDay))} / day for the rest of the month
-            </Text>
+        {/* Overall monthly budget — the headline */}
+        <Pressable
+          testID="overall-budget-card"
+          onPress={() => setOverallModal(true)}
+          style={{ backgroundColor: colors.primary, borderRadius: radii.lg, padding: spacing.lg }}
+        >
+          {monthlyBudget > 0 ? (
+            <>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View>
+                  <Text style={{ color: '#E8DEF8', fontSize: 13 }}>{overBudget ? 'Over budget' : 'Left this month'}</Text>
+                  <Text style={{ color: '#FFFFFF', fontSize: 30, fontWeight: '800', marginTop: 2 }}>{formatAmount(Math.abs(left))}</Text>
+                  <Text style={{ color: '#E8DEF8', fontSize: 12, marginTop: 2 }}>
+                    {formatAmount(totalSpent)} spent of {formatAmount(monthlyBudget)}
+                  </Text>
+                </View>
+                <Ionicons name="pencil" size={18} color="#E8DEF8" />
+              </View>
+              <View style={{ height: 8, borderRadius: 4, backgroundColor: '#4F378B', marginTop: spacing.md, overflow: 'hidden' }}>
+                <View style={{ width: `${usedPct * 100}%`, height: '100%', backgroundColor: overBudget ? '#FF8A80' : '#D0BCFF' }} />
+              </View>
+              {!overBudget ? (
+                <Text style={{ color: '#E8DEF8', fontSize: 12, marginTop: spacing.sm }}>
+                  {formatAmount(Math.max(0, perDay))} / day for the rest of the month
+                </Text>
+              ) : null}
+            </>
           ) : (
-            <Text style={{ color: '#E8DEF8', fontSize: 13 }}>Set limits below to track spending.</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View>
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Set a monthly budget</Text>
+                <Text style={{ color: '#E8DEF8', fontSize: 13, marginTop: 2 }}>One total limit for the whole month.</Text>
+              </View>
+              <Ionicons name="add-circle-outline" size={26} color="#FFFFFF" />
+            </View>
           )}
-        </View>
+        </Pressable>
 
-        {EXPENSE_CATEGORIES.map((cat) => {
+        {/* Optional per-category limits */}
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textMuted, marginTop: spacing.sm, marginLeft: spacing.xs }}>
+          Category limits (optional)
+        </Text>
+
+        {expenseCategories.map((cat) => {
           const limit = budgetFor(cat.id, month);
           const used = spent[cat.id] ?? 0;
           const pct = limit > 0 ? Math.min(used / limit, 1) : 0;
@@ -103,7 +135,16 @@ export default function BudgetScreen() {
         })}
       </ScrollView>
 
-      {/* Limit editor */}
+      <AmountPromptModal
+        visible={overallModal}
+        title="Monthly budget"
+        subtitle="Your total spending limit each month."
+        initialValue={monthlyBudget}
+        onClose={() => setOverallModal(false)}
+        onSave={(value) => setMonthlyBudget(value)}
+      />
+
+      {/* Per-category limit editor */}
       <Modal visible={!!editing} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
         <Pressable
           onPress={() => setEditing(null)}
@@ -111,7 +152,7 @@ export default function BudgetScreen() {
         >
           <Pressable style={{ backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, gap: spacing.lg }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
-              {editing ? `${getCategoryById(editing).name} limit` : ''}
+              {editing ? `${categoryById(editing).name} limit` : ''}
             </Text>
             <TextInput
               testID="budget-input"

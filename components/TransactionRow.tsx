@@ -1,7 +1,7 @@
 import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Transaction } from '@/types';
-import { getCategoryById } from '@/constants/categories';
+import { useStore } from '@/store/useStore';
 import { colors, radii, spacing, formatAmount } from '@/constants/theme';
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function TransactionRow({ transaction, onPress, onLongPress }: Props) {
-  const cat = getCategoryById(transaction.categoryId);
+  const cat = useStore((s) => s.categoryById(transaction.categoryId));
   const isIncome = transaction.type === 'income';
   return (
     <Pressable

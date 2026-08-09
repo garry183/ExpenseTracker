@@ -1,6 +1,12 @@
 import { create } from 'zustand';
-import { Transaction, Budget } from '@/types';
+import { Transaction, Budget, Category, Commitment, FinancePlan } from '@/types';
+import { getCategoryById as resolveCategory, categoriesForType } from '@/constants/categories';
+import { currentMonth, todayISO, daysInMonth, daysRemainingInMonth } from '@/lib/date';
 import * as db from '@/lib/db';
+
+const MONTHLY_BUDGET_KEY = 'monthlyBudget';
+const MONTHLY_INCOME_KEY = 'monthlyIncome';
+const SAVINGS_TARGET_KEY = 'savingsTarget';
 
 function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -19,30 +25,70 @@ interface MonthTotals {
 interface StoreState {
   transactions: Transaction[];
   budgets: Budget[];
+  categories: Category[];
+  commitments: Commitment[];
+  monthlyBudget: number;
+  monthlyIncome: number;
+  savingsTarget: number;
   hydrated: boolean;
   hydrate: () => Promise<void>;
   addTransaction: (input: Omit<Transaction, 'id' | 'createdAt'>) => Promise<void>;
   updateTransaction: (t: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   setBudget: (categoryId: string, month: string, limit: number) => Promise<void>;
+  addCategory: (input: Omit<Category, 'id' | 'isCustom'>) => Promise<Category>;
+  deleteCategory: (id: string) => Promise<void>;
+  setMonthlyBudget: (amount: number) => Promise<void>;
+  setIncome: (amount: number) => Promise<void>;
+  setSavingsTarget: (amount: number) => Promise<void>;
+  addCommitment: (input: Omit<Commitment, 'id' | 'lastPostedMonth'>) => Promise<void>;
+  updateCommitment: (c: Commitment) => Promise<void>;
+  deleteCommitment: (id: string) => Promise<void>;
+  postDueCommitments: () => Promise<void>;
   // selectors
   transactionsForMonth: (month: string) => Transaction[];
   monthTotals: (month: string) => MonthTotals;
   spentByCategory: (month: string) => Record<string, number>;
   budgetFor: (categoryId: string, month: string) => number;
+  categoriesByType: (type: 'expense' | 'income') => Category[];
+  categoryById: (id: string) => Category;
+  monthlyLeft: (month: string) => number;
+  committedTotal: () => number;
+  financePlan: (month: string) => FinancePlan;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
   transactions: [],
   budgets: [],
+  categories: [],
+  commitments: [],
+  monthlyBudget: 0,
+  monthlyIncome: 0,
+  savingsTarget: 0,
   hydrated: false,
 
   hydrate: async () => {
-    const [transactions, budgets] = await Promise.all([
-      db.getAllTransactions(),
-      db.getAllBudgets(),
-    ]);
-    set({ transactions, budgets, hydrated: true });
+    const [transactions, budgets, categories, commitments, monthlyBudgetRaw, incomeRaw, savingsRaw] =
+      await Promise.all([
+        db.getAllTransactions(),
+        db.getAllBudgets(),
+        db.getAllCategories(),
+        db.getAllCommitments(),
+        db.getSetting(MONTHLY_BUDGET_KEY),
+        db.getSetting(MONTHLY_INCOME_KEY),
+        db.getSetting(SAVINGS_TARGET_KEY),
+      ]);
+    set({
+      transactions,
+      budgets,
+      categories,
+      commitments,
+      monthlyBudget: monthlyBudgetRaw ? parseFloat(monthlyBudgetRaw) || 0 : 0,
+      monthlyIncome: incomeRaw ? parseFloat(incomeRaw) || 0 : 0,
+      savingsTarget: savingsRaw ? parseFloat(savingsRaw) || 0 : 0,
+      hydrated: true,
+    });
+    await get().postDueCommitments();
   },
 
   addTransaction: async (input) => {
@@ -71,6 +117,83 @@ export const useStore = create<StoreState>((set, get) => ({
     });
   },
 
+  addCategory: async (input) => {
+    const cat: Category = { ...input, id: uid(), isCustom: true };
+    await db.insertCategory(cat);
+    set((s) => ({ categories: [...s.categories, cat] }));
+    return cat;
+  },
+
+  deleteCategory: async (id) => {
+    await db.deleteCategory(id);
+    set((s) => ({ categories: s.categories.filter((c) => c.id !== id) }));
+  },
+
+  setMonthlyBudget: async (amount) => {
+    const value = Math.max(0, amount);
+    await db.setSetting(MONTHLY_BUDGET_KEY, String(value));
+    set({ monthlyBudget: value });
+  },
+
+  setIncome: async (amount) => {
+    const value = Math.max(0, amount);
+    await db.setSetting(MONTHLY_INCOME_KEY, String(value));
+    set({ monthlyIncome: value });
+  },
+
+  setSavingsTarget: async (amount) => {
+    const value = Math.max(0, amount);
+    await db.setSetting(SAVINGS_TARGET_KEY, String(value));
+    set({ savingsTarget: value });
+  },
+
+  addCommitment: async (input) => {
+    const c: Commitment = { ...input, id: uid(), lastPostedMonth: null };
+    await db.insertCommitment(c);
+    set((s) => ({ commitments: sortCommitments([...s.commitments, c]) }));
+    await get().postDueCommitments();
+  },
+
+  updateCommitment: async (c) => {
+    await db.updateCommitment(c);
+    set((s) => ({
+      commitments: sortCommitments(s.commitments.map((x) => (x.id === c.id ? c : x))),
+    }));
+  },
+
+  deleteCommitment: async (id) => {
+    await db.deleteCommitment(id);
+    set((s) => ({ commitments: s.commitments.filter((c) => c.id !== id) }));
+  },
+
+  postDueCommitments: async () => {
+    const month = currentMonth();
+    const today = Number(todayISO().slice(8, 10));
+    const dim = daysInMonth(month);
+    const due = get().commitments.filter((c) => c.active && c.lastPostedMonth !== month);
+    for (const c of due) {
+      const day = Math.min(c.dayOfMonth, dim);
+      if (today < day) continue; // not reached its due day yet this month
+      const t: Transaction = {
+        id: uid(),
+        amount: c.amount,
+        type: 'expense',
+        categoryId: c.categoryId,
+        note: c.name,
+        date: `${month}-${String(day).padStart(2, '0')}`,
+        createdAt: Date.now(),
+        commitmentId: c.id,
+      };
+      await db.insertTransaction(t);
+      const updated: Commitment = { ...c, lastPostedMonth: month };
+      await db.updateCommitment(updated);
+      set((s) => ({
+        transactions: sortTx([t, ...s.transactions]),
+        commitments: s.commitments.map((x) => (x.id === c.id ? updated : x)),
+      }));
+    }
+  },
+
   transactionsForMonth: (month) => get().transactions.filter((t) => monthOf(t.date) === month),
 
   monthTotals: (month) => {
@@ -90,10 +213,41 @@ export const useStore = create<StoreState>((set, get) => ({
 
   budgetFor: (categoryId, month) =>
     get().budgets.find((b) => b.categoryId === categoryId && b.month === month)?.limit ?? 0,
+
+  categoriesByType: (type) => {
+    const cats = get().categories;
+    return categoriesForType(cats.length ? cats : [], type);
+  },
+
+  categoryById: (id) => resolveCategory(id, get().categories),
+
+  monthlyLeft: (month) => get().monthlyBudget - get().monthTotals(month).expense,
+
+  committedTotal: () =>
+    get().commitments.filter((c) => c.active).reduce((sum, c) => sum + c.amount, 0),
+
+  financePlan: (month) => {
+    const income = get().monthlyIncome;
+    const savings = get().savingsTarget;
+    const committed = get().committedTotal();
+    const discretionarySpent = get()
+      .transactionsForMonth(month)
+      .filter((t) => t.type === 'expense' && !t.commitmentId)
+      .reduce((sum, t) => sum + t.amount, 0);
+    const safeToSpend = income - committed - savings - discretionarySpent;
+    const perDay = safeToSpend / daysRemainingInMonth(month);
+    return { income, committed, savings, discretionarySpent, safeToSpend, perDay };
+  },
 }));
 
 function sortTx(txs: Transaction[]): Transaction[] {
   return [...txs].sort((a, b) =>
     a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1
+  );
+}
+
+function sortCommitments(cs: Commitment[]): Commitment[] {
+  return [...cs].sort((a, b) =>
+    a.dayOfMonth === b.dayOfMonth ? a.name.localeCompare(b.name) : a.dayOfMonth - b.dayOfMonth
   );
 }

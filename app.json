@@ -10,22 +10,52 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.garry183.expensetracker"
     },
+    "web": {
+      "output": "static"
+    },
     "android": {
-      "package": "com.garry183.expensetracker"
+      "package": "com.garry183.expensetracker",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "headers": {
+            "Cross-Origin-Embedder-Policy": "credentialless",
+            "Cross-Origin-Opener-Policy": "same-origin"
+          }
+        }
+      ],
       "expo-sqlite",
       [
         "expo-camera",
         {
           "cameraPermission": "Allow ExpenseTracker to access your camera to scan receipts."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
       ]
     ],
     "scheme": "expensetracker",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "393499a4-d5c4-4958-8e60-dbb51c8de547"
+      }
     }
   }
 }

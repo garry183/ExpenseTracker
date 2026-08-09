@@ -52,6 +52,14 @@ export default function RootLayout() {
             tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} />,
           }}
         />
+        <Tabs.Screen
+          name="plan"
+          options={{
+            title: 'Plan',
+            tabBarIcon: ({ color, size }) => <Ionicons name="calculator-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen name="settings" options={{ href: null }} />
       </Tabs>
     </SafeAreaProvider>
   );

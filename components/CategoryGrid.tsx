@@ -7,9 +7,10 @@ interface Props {
   categories: Category[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onAddNew?: () => void;
 }
 
-export default function CategoryGrid({ categories, selectedId, onSelect }: Props) {
+export default function CategoryGrid({ categories, selectedId, onSelect, onAddNew }: Props) {
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'flex-start' }}>
       {categories.map((cat) => {
@@ -45,6 +46,30 @@ export default function CategoryGrid({ categories, selectedId, onSelect }: Props
           </Pressable>
         );
       })}
+      {onAddNew ? (
+        <Pressable
+          testID="category-add-new"
+          onPress={onAddNew}
+          style={{ width: '22%', alignItems: 'center', paddingVertical: spacing.sm }}
+        >
+          <View
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: radii.pill,
+              backgroundColor: colors.surface,
+              borderWidth: 2,
+              borderColor: colors.border,
+              borderStyle: 'dashed',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="add" size={26} color={colors.primary} />
+          </View>
+          <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: spacing.xs }}>New</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
