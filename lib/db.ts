@@ -114,6 +114,15 @@ export async function deleteTransaction(id: string): Promise<void> {
   await db.runAsync('DELETE FROM transactions WHERE id = ?', id);
 }
 
+// Remove auto-posted transactions linked to the given commitments. Used to
+// purge yearly-commitment transactions, which are no longer posted monthly.
+export async function deleteTransactionsByCommitmentIds(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  const placeholders = ids.map(() => '?').join(', ');
+  await db.runAsync(`DELETE FROM transactions WHERE commitmentId IN (${placeholders})`, ...ids);
+}
+
 export async function getAllBudgets(): Promise<Budget[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<{ categoryId: string; month: string; limitAmount: number }>(

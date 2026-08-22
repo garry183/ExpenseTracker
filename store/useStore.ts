@@ -80,8 +80,22 @@ export const useStore = create<StoreState>((set, get) => ({
         db.getSetting(MONTHLY_INCOME_KEY),
         db.getSetting(SAVINGS_TARGET_KEY),
       ]);
+    // Yearly commitments are tracked in the Annual expenses view, not spent as
+    // monthly transactions. Purge any that were auto-posted by earlier builds so
+    // they stop showing up in Home and Analytics as monthly expenses.
+    const yearlyIds = new Set(commitments.filter((c) => c.frequency === 'yearly').map((c) => c.id));
+    const staleYearlyTx = yearlyIds.size
+      ? transactions.filter((t) => t.commitmentId && yearlyIds.has(t.commitmentId))
+      : [];
+    if (staleYearlyTx.length) {
+      await db.deleteTransactionsByCommitmentIds([...yearlyIds]);
+    }
+    const cleanTransactions = staleYearlyTx.length
+      ? transactions.filter((t) => !(t.commitmentId && yearlyIds.has(t.commitmentId)))
+      : transactions;
+
     set({
-      transactions,
+      transactions: cleanTransactions,
       budgets,
       categories,
       commitments,
@@ -178,6 +192,19 @@ export const useStore = create<StoreState>((set, get) => ({
       if (c.frequency === 'yearly' && c.monthOfYear !== monthNum) continue; // not its due month
       const day = Math.min(c.dayOfMonth, dim);
       if (today < day) continue; // not reached its due day yet this month
+
+      // Yearly commitments are not spent as monthly transactions — that would
+      // double-count them in Home and Analytics. Mark this year's occurrence as
+      // paid (for the Annual expenses view) without posting a transaction.
+      if (c.frequency === 'yearly') {
+        const updated: Commitment = { ...c, lastPostedMonth: month };
+        await db.updateCommitment(updated);
+        set((s) => ({
+          commitments: s.commitments.map((x) => (x.id === c.id ? updated : x)),
+        }));
+        continue;
+      }
+
       const t: Transaction = {
         id: uid(),
         amount: c.amount,

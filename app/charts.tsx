@@ -52,7 +52,39 @@ export default function ChartsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.xl, paddingBottom: 40 }}>
-        {/* Annual expenses */}
+        {/* Donut */}
+        <View style={{ backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, alignItems: 'center' }}>
+          <Text style={{ alignSelf: 'flex-start', fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: spacing.md }}>
+            Spending by category
+          </Text>
+          {totalExpense > 0 ? (
+            <>
+              <Donut
+                slices={breakdown.map((b) => ({ value: b.value, color: b.category.color }))}
+                centerLabel={formatAmount(totalExpense)}
+                centerSub="spent"
+              />
+              <View style={{ width: '100%', marginTop: spacing.lg, gap: spacing.sm }}>
+                {breakdown.map((b) => (
+                  <View key={b.category.id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: b.category.color }} />
+                    <Text style={{ flex: 1, color: colors.text, fontSize: 13 }}>{b.category.name}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                      {Math.round((b.value / totalExpense) * 100)}%
+                    </Text>
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600', minWidth: 70, textAlign: 'right' }}>
+                      {formatAmount(b.value)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : (
+            <Text style={{ color: colors.textMuted, paddingVertical: spacing.xl }}>No expenses this month.</Text>
+          )}
+        </View>
+
+        {/* Annual expenses — yearly commitments, shown as their own section below the chart */}
         {yearlyExpenses.length > 0 ? (
           <View style={{ backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md }}>
             <View>
@@ -95,38 +127,6 @@ export default function ChartsScreen() {
             })}
           </View>
         ) : null}
-
-        {/* Donut */}
-        <View style={{ backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, alignItems: 'center' }}>
-          <Text style={{ alignSelf: 'flex-start', fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: spacing.md }}>
-            Spending by category
-          </Text>
-          {totalExpense > 0 ? (
-            <>
-              <Donut
-                slices={breakdown.map((b) => ({ value: b.value, color: b.category.color }))}
-                centerLabel={formatAmount(totalExpense)}
-                centerSub="spent"
-              />
-              <View style={{ width: '100%', marginTop: spacing.lg, gap: spacing.sm }}>
-                {breakdown.map((b) => (
-                  <View key={b.category.id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: b.category.color }} />
-                    <Text style={{ flex: 1, color: colors.text, fontSize: 13 }}>{b.category.name}</Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                      {Math.round((b.value / totalExpense) * 100)}%
-                    </Text>
-                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600', minWidth: 70, textAlign: 'right' }}>
-                      {formatAmount(b.value)}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          ) : (
-            <Text style={{ color: colors.textMuted, paddingVertical: spacing.xl }}>No expenses this month.</Text>
-          )}
-        </View>
 
         {/* Trend */}
         <View style={{ backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg }}>
