@@ -54,7 +54,6 @@ interface StoreState {
   categoryById: (id: string) => Category;
   monthlyLeft: (month: string) => number;
   committedTotal: () => number;
-  yearlyCommittedTotal: () => number;
   annualExpenses: () => AnnualExpenseInfo[];
   financePlan: (month: string) => FinancePlan;
 }
@@ -259,11 +258,6 @@ export const useStore = create<StoreState>((set, get) => ({
       .commitments.filter((c) => c.active && c.frequency === 'monthly')
       .reduce((sum, c) => sum + c.amount, 0),
 
-  yearlyCommittedTotal: () =>
-    get()
-      .commitments.filter((c) => c.active && c.frequency === 'yearly')
-      .reduce((sum, c) => sum + c.amount, 0),
-
   annualExpenses: () => {
     const today = todayISO();
     return get()
@@ -276,14 +270,13 @@ export const useStore = create<StoreState>((set, get) => ({
     const income = get().monthlyIncome;
     const savings = get().savingsTarget;
     const committed = get().committedTotal();
-    const yearlyReserve = get().yearlyCommittedTotal() / 12;
     const discretionarySpent = get()
       .transactionsForMonth(month)
       .filter((t) => t.type === 'expense' && !t.commitmentId)
       .reduce((sum, t) => sum + t.amount, 0);
-    const safeToSpend = income - committed - yearlyReserve - savings - discretionarySpent;
+    const safeToSpend = income - committed - savings - discretionarySpent;
     const perDay = safeToSpend / daysRemainingInMonth(month);
-    return { income, committed, yearlyReserve, savings, discretionarySpent, safeToSpend, perDay };
+    return { income, committed, savings, discretionarySpent, safeToSpend, perDay };
   },
 }));
 

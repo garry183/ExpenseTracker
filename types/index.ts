@@ -48,7 +48,6 @@ export interface Commitment {
 export interface FinancePlan {
   income: number;
   committed: number;
-  yearlyReserve: number; // amortized monthly set-aside for active yearly commitments
   savings: number;
   discretionarySpent: number;
   safeToSpend: number;

@@ -112,7 +112,7 @@ export default function PlanScreen() {
             <Text style={{ color: '#E8DEF8', fontSize: 13 }}>Yearly obligations</Text>
             <Text style={{ color: '#FFFFFF', fontSize: 34, fontWeight: '800', marginTop: 2 }}>{formatAmount(yearlyTotal)}</Text>
             <Text style={{ color: '#E8DEF8', fontSize: 12, marginTop: 4 }}>
-              ≈ {formatAmount(yearlyPerMonth)} / month, already deducted from your monthly Safe to spend
+              ≈ {formatAmount(yearlyPerMonth)} / month if you save ahead — not deducted from your monthly Safe to spend
             </Text>
           </View>
 
@@ -220,17 +220,6 @@ export default function PlanScreen() {
             value={plan.committed}
             sign="−"
             subtitle={`${monthlyCommitments.filter((c) => c.active).length} active`}
-          />
-          <Divider />
-          <PlanRow
-            testID="plan-yearly-reserve"
-            icon="calendar-outline"
-            iconColor={colors.warning}
-            label="Annual sinking fund"
-            value={plan.yearlyReserve}
-            sign="−"
-            subtitle={`${yearlyCommitments.filter((c) => c.active).length} yearly item${yearlyCommitments.filter((c) => c.active).length === 1 ? '' : 's'} set aside`}
-            onPress={() => setView('yearly')}
           />
           <Divider />
           <PlanRow
