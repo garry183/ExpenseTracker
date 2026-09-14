@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Shopping List",
+    "slug": "shopping-list",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0E1116",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.garry183.shoppinglist"
+    },
+    "android": {
+      "package": "com.garry183.shoppinglist"
+    },
+    "web": {
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Shopping List to pick a photo for a new item."
+        }
+      ]
+    ],
+    "scheme": "shoppinglist",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // V1: anyone holding a group's join code can read/write that group.
+    // The 6-character code is the shared secret; there is no login.
+    match /groups/{code}/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
